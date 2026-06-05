@@ -1,0 +1,9 @@
+#!/bin/sh
+# hermes-daemon-launch — persistent gateway service.
+
+export PATH="$SNAP/bin:$PATH"
+export PLAYWRIGHT_BROWSERS_PATH="$SNAP/usr/share/ms-playwright"
+
+mkdir -p "$HOME/.hermes"
+
+exec "$SNAP/bin/hermes" gateway start

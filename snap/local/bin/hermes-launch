@@ -1,0 +1,18 @@
+#!/bin/sh
+# hermes-launch — wrapper that puts bundled Node.js on PATH and ensures
+# Playwright can find its baked-in Chromium.
+
+export PATH="$SNAP/bin:$PATH"
+export PLAYWRIGHT_BROWSERS_PATH="$SNAP/usr/share/ms-playwright"
+
+mkdir -p "$HOME/.hermes"
+
+# Install and enable the gateway service on first run.
+if ! systemctl --user is-enabled hermes >/dev/null 2>&1; then
+  mkdir -p "$HOME/.config/systemd/user"
+  cp "$SNAP/share/systemd/user/hermes.service" "$HOME/.config/systemd/user/hermes.service"
+  systemctl --user daemon-reload 2>/dev/null || true
+  systemctl --user enable --now hermes 2>/dev/null || true
+fi
+
+exec "$SNAP/bin/hermes" "$@"

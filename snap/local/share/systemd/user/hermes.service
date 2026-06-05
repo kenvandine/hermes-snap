@@ -1,0 +1,11 @@
+[Unit]
+Description=Hermes AI Agent gateway
+After=network.target
+
+[Service]
+ExecStart=/snap/bin/hermes.daemon
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target
