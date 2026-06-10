@@ -1,0 +1,66 @@
+name: Check for new releases
+
+on:
+  schedule:
+    - cron: '0 6 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-npm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get current version
+        id: current
+        run: |
+          VERSION=$(snapcraftctl set-version 2>/dev/null || echo "0.0.0")
+          if [ -f snap/snapcraft.yaml ]; then
+            VERSION=$(grep -m1 'craftctl set version' snap/snapcraft.yaml | grep -oP '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo "0.0.0")
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Get latest PyPI version
+        id: pypi
+        run: |
+          LATEST=$(curl -sL https://pypi.org/pypi/hermes-agent/json | node -e "
+            let d = '';
+            process.stdin.on('data', c => d += c);
+            process.stdin.on('end', () => console.log(JSON.parse(d)['info']['version']));
+          ")
+          echo "version=$LATEST" >> $GITHUB_OUTPUT
+
+      - name: Compare versions
+        id: compare
+        run: |
+          CURRENT="${{ steps.current.outputs.version }}"
+          LATEST="${{ steps.pypi.outputs.version }}"
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "latest=$LATEST" >> $GITHUB_OUTPUT
+          if [ "$CURRENT" != "$LATEST" ]; then
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Bump version
+        if: steps.compare.outputs.needs_update == 'true'
+        run: |
+          sed -i "s/^\(version:\).*/\1 \"${{ steps.pypi.outputs.version }}\"/" snap/snapcraft.yaml
+          git config user.name "hermes-ci"
+          git config user.email "ci@hermes-agent.dev"
+          git add snap/snapcraft.yaml
+          git commit -m "bump: version to ${{ steps.pypi.outputs.version }}" || echo "no changes"
+          git push || true
+
+      - name: Create release
+        if: steps.compare.outputs.needs_update == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.pypi.outputs.version }}
+          name: Release ${{ steps.pypi.outputs.version }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
