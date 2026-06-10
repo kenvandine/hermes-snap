@@ -7,12 +7,19 @@ export PLAYWRIGHT_BROWSERS_PATH="$SNAP/usr/share/ms-playwright"
 
 mkdir -p "$HOME/.hermes"
 
-# Install and enable the gateway service on first run.
-if ! systemctl --user is-enabled hermes >/dev/null 2>&1; then
-  mkdir -p "$HOME/.config/systemd/user"
-  cp "$SNAP/share/systemd/user/hermes.service" "$HOME/.config/systemd/user/hermes.service"
+# Install/refresh and enable the gateway service.  Re-copy the unit whenever the
+# bundled copy changes (e.g. after a snap refresh) so updates actually land,
+# rather than only installing once on the very first run.
+SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
+SERVICE_NAME="hermes"
+UNIT_PATH="$SYSTEMD_USER_DIR/${SERVICE_NAME}.service"
+mkdir -p "$SYSTEMD_USER_DIR"
+if [ ! -f "$UNIT_PATH" ] || ! cmp -s "$SNAP/share/systemd/user/${SERVICE_NAME}.service" "$UNIT_PATH"; then
+  cp "$SNAP/share/systemd/user/${SERVICE_NAME}.service" "$UNIT_PATH"
   systemctl --user daemon-reload 2>/dev/null || true
-  systemctl --user enable --now hermes 2>/dev/null || true
+fi
+if ! systemctl --user is-enabled "$SERVICE_NAME" >/dev/null 2>&1; then
+  systemctl --user enable --now "$SERVICE_NAME" 2>/dev/null || true
 fi
 
 exec "$SNAP/bin/hermes" "$@"
