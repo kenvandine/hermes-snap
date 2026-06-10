@@ -1,4 +1,4 @@
-name: hermes
+name: hermes-agent
 base: core24
 adopt-info: hermes
 title: Hermes AI Agent
@@ -19,13 +19,13 @@ description: |
 
   Run the setup wizard on first launch:
 
-    hermes setup
+    hermes-agent setup
 
   The background gateway service starts automatically the first time you run
-  any hermes command and is managed as a standard systemd user unit:
+  any hermes-agent command and is managed as a standard systemd user unit:
 
-    systemctl --user status hermes
-    systemctl --user stop hermes
+    systemctl --user status hermes-agent
+    systemctl --user stop hermes-agent
 
 source-code: https://github.com/NousResearch/hermes-agent
 issues: https://github.com/NousResearch/hermes-agent/issues
@@ -36,14 +36,15 @@ confinement: classic
 
 apps:
   # Interactive CLI — setup wizard, status checks, one-shot commands, etc.
-  hermes:
+  # App name matches the snap name so it installs as the bare 'hermes-agent'.
+  hermes-agent:
     command: bin/hermes-launch
     environment:
       PLAYWRIGHT_BROWSERS_PATH: $SNAP/usr/share/ms-playwright
 
-  # Persistent gateway service — registered as /snap/bin/hermes.daemon so the
-  # snap wrapper sets up $SNAP and friends before exec-ing the launch script.
-  # Managed by the systemd user unit installed on first run of 'hermes'.
+  # Persistent gateway service — registered as /snap/bin/hermes-agent.daemon so
+  # the snap wrapper sets up $SNAP and friends before exec-ing the launch script.
+  # Managed by the systemd user unit installed on first run of 'hermes-agent'.
   daemon:
     command: bin/hermes-daemon-launch
     environment:
@@ -56,16 +57,53 @@ parts:
     organize:
       bin/hermes-launch: bin/hermes-launch
       bin/hermes-daemon-launch: bin/hermes-daemon-launch
-      share/systemd/user/hermes.service: share/systemd/user/hermes.service
+      share/systemd/user/hermes-agent.service: share/systemd/user/hermes-agent.service
 
   hermes:
-    plugin: python
+    # Use the nil plugin + a manual venv rather than plugin: python.  On core24
+    # the python plugin's post-build payload check fails ("No suitable Python
+    # interpreter found") because python3.12 is filtered from stage-packages as
+    # a base-manifest package.  This mirrors the working odysseus-snap part.
+    plugin: nil
     source: .
-    python-packages:
-      - hermes-agent
-      - playwright
+    build-packages:
+      - python3-venv
+      - python3-dev
+      - build-essential
     override-build: |
-      craftctl default
+      # Start from a clean install dir so re-runs (incremental builds) don't
+      # try to recreate a venv over a previous one whose pyvenv.cfg points at
+      # the runtime /snap path (absent inside the build instance).
+      rm -rf "$CRAFT_PART_INSTALL"
+      mkdir -p "$CRAFT_PART_INSTALL"
+      # Create the venv with --copies so bin/python3.12 is a real interpreter
+      # bundled in the snap, not a symlink to the host's /usr/bin/python3.12
+      # (which may not exist on the host — e.g. Ubuntu 26.04 ships 3.14).
+      python3 -m venv --copies "$CRAFT_PART_INSTALL"
+      export PATH="$CRAFT_PART_INSTALL/bin:$PATH"
+      pip install --upgrade --no-cache-dir pip setuptools wheel
+      pip install --no-cache-dir hermes-agent playwright
+
+      # Bundle the python3.12 standard library into the venv so the snap is
+      # self-contained.  A classic snap runs against the host filesystem, and
+      # the host's system python may not be 3.12 (e.g. Ubuntu 26.04 ships 3.14),
+      # so we must not rely on /usr/lib/python3.12 existing at runtime.  The
+      # core24 build instance is Ubuntu 24.04, which provides it.
+      PYSTDLIB="$(python3 -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')"
+      cp -a "${PYSTDLIB}/." "$CRAFT_PART_INSTALL/lib/python3.12/"
+      rm -rf "$CRAFT_PART_INSTALL/lib/python3.12/test"  # large, not needed at runtime
+
+      # Repoint the venv's base python ('home') at the bundled runtime path.
+      # A venv resolves its STDLIB from 'home' (not from the venv's own lib),
+      # so without this it would look in the host's /usr/lib/python3.12 — which
+      # may not exist.  With home pointing into the snap, the venv finds both
+      # the bundled stdlib (home -> lib/python3.12) and its site-packages
+      # (venv prefix -> lib/python3.12/site-packages).
+      sed -i \
+        -e "s|^home = .*|home = /snap/${CRAFT_PROJECT_NAME}/current/bin|" \
+        -e "s|^executable = .*|executable = /snap/${CRAFT_PROJECT_NAME}/current/bin/python3.12|" \
+        "$CRAFT_PART_INSTALL/pyvenv.cfg"
+
       # Bake the Playwright-pinned Chromium revision into the snap.
       export PLAYWRIGHT_BROWSERS_PATH="$CRAFT_PART_INSTALL/usr/share/ms-playwright"
       mkdir -p "$PLAYWRIGHT_BROWSERS_PATH"
@@ -78,6 +116,28 @@ parts:
           > "$CHROME_BIN"
         chmod +x "$CHROME_BIN"
       fi
+
+      # Rewrite venv shebangs from the ephemeral build path to the runtime path
+      # so console scripts (e.g. bin/hermes) use the snap's own Python.  Use
+      # $CRAFT_PROJECT_NAME (the snap name) rather than hardcoding it, so a
+      # future rename can't leave the shebangs pointing at a stale /snap path.
+      find "$CRAFT_PART_INSTALL/bin" -maxdepth 1 -type f | while read -r f; do
+        case "$(head -c 80 "$f" 2>/dev/null)" in
+          "#!${CRAFT_PART_INSTALL}/bin/python"*)
+            sed -i "1s|${CRAFT_PART_INSTALL}|/snap/${CRAFT_PROJECT_NAME}/current|" "$f"
+            ;;
+        esac
+      done
+
+      chmod 755 "$CRAFT_PART_INSTALL/bin/python3.12"
+      # NOTE: deliberately NOT patchelf-ing the interpreter to core24's linker.
+      # Classic confinement uses the host's dynamic linker (as the openclaw
+      # reference snap does for node).  A 24.04-built binary runs fine against a
+      # newer host glibc (forward-compatible); patching it to core24's linker
+      # instead segfaults on hosts whose core24/glibc combination differs
+      # (observed on Ubuntu 26.04).  The stdlib is bundled above, so the snap
+      # does not depend on the host shipping Python 3.12.
+
       # Derive snap version from the installed package metadata.
       craftctl set version="$(find "$CRAFT_PART_INSTALL" \
         -name "METADATA" -path "*/hermes_agent-*.dist-info/METADATA" 2>/dev/null \
@@ -85,8 +145,6 @@ parts:
     stage-packages:
       - curl
       - git
-      - python3
-      - python3-full
       # Runtime libraries required by Playwright's bundled Chromium on Noble.
       - libnss3
       - libnspr4

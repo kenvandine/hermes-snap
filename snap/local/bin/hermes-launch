@@ -4,6 +4,10 @@
 
 export PATH="$SNAP/bin:$PATH"
 export PLAYWRIGHT_BROWSERS_PATH="$SNAP/usr/share/ms-playwright"
+# The bundled venv's pyvenv.cfg 'home' is repointed into the snap so Python
+# finds the bundled stdlib; that makes Python treat it as a non-venv install,
+# so the venv's site-packages must be added explicitly here.
+export PYTHONPATH="$SNAP/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
 
 mkdir -p "$HOME/.hermes"
 
@@ -11,7 +15,7 @@ mkdir -p "$HOME/.hermes"
 # bundled copy changes (e.g. after a snap refresh) so updates actually land,
 # rather than only installing once on the very first run.
 SYSTEMD_USER_DIR="$HOME/.config/systemd/user"
-SERVICE_NAME="hermes"
+SERVICE_NAME="hermes-agent"
 UNIT_PATH="$SYSTEMD_USER_DIR/${SERVICE_NAME}.service"
 mkdir -p "$SYSTEMD_USER_DIR"
 if [ ! -f "$UNIT_PATH" ] || ! cmp -s "$SNAP/share/systemd/user/${SERVICE_NAME}.service" "$UNIT_PATH"; then

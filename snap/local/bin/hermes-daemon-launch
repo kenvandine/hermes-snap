@@ -3,6 +3,8 @@
 
 export PATH="$SNAP/bin:$PATH"
 export PLAYWRIGHT_BROWSERS_PATH="$SNAP/usr/share/ms-playwright"
+# See hermes-launch: add the venv site-packages explicitly.
+export PYTHONPATH="$SNAP/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
 
 mkdir -p "$HOME/.hermes"
 

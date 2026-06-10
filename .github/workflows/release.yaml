@@ -36,4 +36,4 @@ jobs:
         run: snapcraft pack
 
       - name: Publish to candidate
-        run: snapcraft upload --release=candidate hermes_*.snap
+        run: snapcraft upload --release=candidate hermes-agent_*.snap

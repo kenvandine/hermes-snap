@@ -3,7 +3,7 @@ Description=Hermes AI Agent gateway
 After=network.target
 
 [Service]
-ExecStart=/snap/bin/hermes.daemon
+ExecStart=/snap/bin/hermes-agent.daemon
 Restart=on-failure
 RestartSec=10s
 
