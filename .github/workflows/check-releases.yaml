@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get current version
         id: current
@@ -57,7 +57,7 @@ jobs:
 
       - name: Create release
         if: steps.compare.outputs.needs_update == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.pypi.outputs.version }}
           name: Release ${{ steps.pypi.outputs.version }}
