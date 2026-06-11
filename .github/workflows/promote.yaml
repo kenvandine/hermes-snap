@@ -12,9 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install snapcraft
-        run: sudo snap install snapcraft --channel=8.x/stable --classic
+        run: sudo snap install snapcraft --classic
 
       - name: Promote candidate -> stable
-        run: |
-          echo "${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}" | snapcraft login --credentials-standard
-          snapcraft promote hermes-agent --from-channel candidate --to-channel stable --yes
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: snapcraft promote hermes-agent --from-channel candidate --to-channel stable --yes

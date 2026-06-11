@@ -49,6 +49,9 @@ jobs:
         uses: snapcore/action-build@v1
 
       - name: Publish to candidate (${{ needs.check.outputs.upstream }})
-        run: |
-          echo "${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}" | snapcraft login --credentials-standard
-          snapcraft upload --release=candidate "${{ steps.build.outputs.snap }}"
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.build.outputs.snap }}
+          release: candidate
