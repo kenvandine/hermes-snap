@@ -4,3 +4,7 @@ parts/
 stage/
 prime/
 .snapcraft/
+
+# Local-only artefacts (snap-review output, classic-confinement request drafts)
+*.review
+*.forum-post.md

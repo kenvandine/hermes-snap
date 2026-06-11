@@ -97,6 +97,16 @@ parts:
       PYSTDLIB="$(python3 -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')"
       cp -a "${PYSTDLIB}/." "$CRAFT_PART_INSTALL/lib/python3.12/"
       rm -rf "$CRAFT_PART_INSTALL/lib/python3.12/test"  # large, not needed at runtime
+      # Strip external/dangling symlinks the Debian stdlib ships (e.g.
+      # sitecustomize.py -> /etc/..., and the config-*/libpython3.12.so dev
+      # link).  snap-review rejects external symlinks, and these are system
+      # hooks / build-time links not needed at runtime.
+      find "$CRAFT_PART_INSTALL/lib/python3.12" -type l | while read -r l; do
+        case "$(readlink "$l")" in
+          /*) rm -f "$l" ;;            # absolute target -> external
+          *)  [ -e "$l" ] || rm -f "$l" ;;   # relative + dangling -> remove
+        esac
+      done
 
       # Repoint the venv's base python ('home') at the bundled runtime path.
       # A venv resolves its STDLIB from 'home' (not from the venv's own lib),
