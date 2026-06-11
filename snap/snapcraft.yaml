@@ -81,7 +81,10 @@ parts:
       # Create the venv with --copies so bin/python3.12 is a real interpreter
       # bundled in the snap, not a symlink to the host's /usr/bin/python3.12
       # (which may not exist on the host — e.g. Ubuntu 26.04 ships 3.14).
-      python3 -m venv --copies "$CRAFT_PART_INSTALL"
+      # Use the absolute system interpreter: on an incremental rebuild a stale
+      # staged venv python (with our repointed pyvenv.cfg) can shadow `python3`
+      # on PATH and make `venv` fail looking for /snap/<name>/current/bin/python3.
+      /usr/bin/python3 -m venv --copies "$CRAFT_PART_INSTALL"
       export PATH="$CRAFT_PART_INSTALL/bin:$PATH"
       pip install --upgrade --no-cache-dir pip setuptools wheel
       pip install --no-cache-dir hermes-agent playwright
