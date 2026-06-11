@@ -33,10 +33,20 @@ systemctl --user start hermes-agent
 
 ## Design notes
 
-**Python package** — hermes is distributed as a Python package (`hermes-agent` on PyPI). The snap installs it into a bundled virtualenv. It uses the `nil` plugin with a manual `python3 -m venv` rather than the `python` plugin, because on core24 the python plugin's post-build payload check fails (python3.12 is filtered as a base-manifest package). The venv interpreter is patched (via `patchelf`) to core24's dynamic linker.
+**Python package** — hermes is distributed as a Python package (`hermes-agent` on PyPI). The snap installs it into a bundled virtualenv using the `nil` plugin with a manual `python3 -m venv` rather than the `python` plugin, because on core24 the python plugin's post-build payload check fails (python3.12 is filtered as a base-manifest package). The Python 3.12 stdlib is bundled into the venv and `pyvenv.cfg` is repointed at the snap path (with site-packages added via `PYTHONPATH`), so the snap is self-contained and does not depend on the host's Python. The interpreter is **not** patchelf'd — classic confinement uses the host's dynamic linker.
 
 **Bundled Node.js** — A separate `nodejs` part stages Node.js 22 via the `npm` plugin (no npm packages installed — just the runtime). This allows hermes to use Node.js for browser automation tools at runtime without requiring it to be installed on the host.
 
 **Playwright Chromium** — The Python `playwright` package is installed alongside `hermes-agent` and its pinned Chromium revision is baked in during build. Chromium runs with `--no-sandbox` via a wrapper script (classic confinement, no AppArmor policy).
 
 **Classic confinement** — Hermes needs broad filesystem and process access for its agentic tool execution, so classic confinement is used.
+
+## Links
+
+- Upstream project: <https://github.com/NousResearch/hermes-agent> (https://hermes-agent.nousresearch.com)
+- Snap packaging: <https://github.com/kenvandine/hermes-snap>
+- Report a snap issue: <https://github.com/kenvandine/hermes-snap/issues>
+
+## License
+
+Hermes is licensed under **MIT**. This snap packaging lives in [kenvandine/hermes-snap](https://github.com/kenvandine/hermes-snap).

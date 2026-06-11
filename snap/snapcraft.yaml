@@ -27,9 +27,11 @@ description: |
     systemctl --user status hermes-agent
     systemctl --user stop hermes-agent
 
-source-code: https://github.com/NousResearch/hermes-agent
-issues: https://github.com/NousResearch/hermes-agent/issues
-contact: https://github.com/NousResearch/hermes-agent/issues
+source-code: https://github.com/kenvandine/hermes-snap
+issues: https://github.com/kenvandine/hermes-snap/issues
+contact: https://github.com/kenvandine/hermes-snap/issues
+website: https://hermes-agent.nousresearch.com
+license: MIT
 
 grade: stable
 confinement: classic
