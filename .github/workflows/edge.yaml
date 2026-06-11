@@ -1,0 +1,41 @@
+name: Edge build
+
+# Unstable builds: rebuild whenever the packaging on main changes, and once a
+# day to pick up new upstream releases. Published to the edge channel.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'snap/**'
+      - '.github/workflows/edge.yaml'
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-edge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up snapd
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y snapd
+          sudo ln -sf /var/lib/snapd/snap /snap
+          sudo systemctl start snapd.socket
+          sudo snap wait system seed.loaded
+      - name: Install snapcraft
+        run: sudo snap install snapcraft --channel=8.x/stable --classic
+
+      - name: Build snap
+        run: snapcraft pack
+
+      - name: Publish to edge
+        run: |
+          echo "${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}" | snapcraft login --credentials-standard
+          snapcraft upload --release=edge hermes-agent_*.snap

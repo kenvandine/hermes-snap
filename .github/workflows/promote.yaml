@@ -1,0 +1,20 @@
+name: Promote candidate to stable
+
+# Manual QA gate: promote the current candidate revision(s) to stable.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install snapcraft
+        run: sudo snap install snapcraft --channel=8.x/stable --classic
+
+      - name: Promote candidate -> stable
+        run: |
+          echo "${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}" | snapcraft login --credentials-standard
+          snapcraft promote hermes-agent --from-channel candidate --to-channel stable --yes
