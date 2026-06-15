@@ -27,6 +27,18 @@ description: |
     systemctl --user status hermes-agent
     systemctl --user stop hermes-agent
 
+  SECURITY NOTE
+
+  This tool is capable of executing code, accessing files, and interacting
+  with external services on your behalf. Due to the nature of autonomous
+  AI agents, we recommend installing and running this snap inside an LXD
+  container as best practice. A container provides an extra layer of
+  confinement, limiting the agent's reach to the container environment
+  and reducing exposure to your host system and personal data.
+
+    lxc launch ubuntu:24.04 my-agent
+    lxc exec my-agent -- snap install --classic hermes-agent
+
 source-code: https://github.com/kenvandine/hermes-snap
 issues: https://github.com/kenvandine/hermes-snap/issues
 contact: https://github.com/kenvandine/hermes-snap/issues
