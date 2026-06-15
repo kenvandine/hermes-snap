@@ -64,6 +64,20 @@ apps:
     environment:
       PLAYWRIGHT_BROWSERS_PATH: $SNAP/usr/share/ms-playwright
 
+  # Interactive Lemonade model picker.  Run as: hermes-agent.lemonade
+  lemonade:
+    command: bin/hermes-lemonade
+    environment:
+      PLAYWRIGHT_BROWSERS_PATH: $SNAP/usr/share/ms-playwright
+      CLAW_INFERENCE_SNAPS: "gemma3 gemma4 deepseek-r1 nemotron-3-nano nemotron-3-nano-omni qwen-vl"
+
+  # Interactive inference snap picker.  Run as: hermes-agent.inference-snap
+  inference-snap:
+    command: bin/hermes-inference-snap
+    environment:
+      PLAYWRIGHT_BROWSERS_PATH: $SNAP/usr/share/ms-playwright
+      CLAW_INFERENCE_SNAPS: "gemma3 gemma4 deepseek-r1 nemotron-3-nano nemotron-3-nano-omni qwen-vl"
+
 parts:
   launcher:
     plugin: dump
@@ -71,6 +85,8 @@ parts:
     organize:
       bin/hermes-launch: bin/hermes-launch
       bin/hermes-daemon-launch: bin/hermes-daemon-launch
+      bin/hermes-lemonade: bin/hermes-lemonade
+      bin/hermes-inference-snap: bin/hermes-inference-snap
       share/systemd/user/hermes-agent.service: share/systemd/user/hermes-agent.service
 
   hermes:

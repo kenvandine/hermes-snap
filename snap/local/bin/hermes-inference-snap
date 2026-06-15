@@ -1,0 +1,123 @@
+#!/bin/sh
+# hermes-inference-snap — interactive inference snap picker for Hermes Agent.
+#
+# Discovers installed Canonical inference snaps, probes their OpenAI-compatible
+# APIs, presents a menu to choose one, and configures Hermes via
+# `hermes config set`, then restarts the gateway.
+#
+# Run as:  hermes-agent.inference-snap
+#
+# Requires classic confinement: inference snap CLIs must be reachable via PATH.
+
+export PATH="$SNAP/bin:$PATH"
+export PYTHONPATH="$SNAP/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
+CURL="$SNAP/usr/bin/curl"
+
+CLI="hermes-agent"
+INFERENCE_SNAPS="${CLAW_INFERENCE_SNAPS:-gemma3 gemma4 deepseek-r1 nemotron-3-nano nemotron-3-nano-omni qwen-vl}"
+SERVICE_NAME="hermes-agent"
+
+log() { printf '%s: %s\n' "$CLI" "$1"; }
+err() { printf '%s: %s\n' "$CLI" "$1" >&2; }
+
+# Returns "http://HOST:PORT/BASE-PATH" for the Hermes base_url (includes /v1).
+get_snap_base_url() {
+  sname="$1"
+  snap list "$sname" >/dev/null 2>&1 || return 1
+  host=$("$sname" get http.host 2>/dev/null)
+  port=$("$sname" get http.port 2>/dev/null)
+  bpath=$("$sname" get http.base-path 2>/dev/null)
+  [ -z "$port" ] && return 1
+  host="${host:-127.0.0.1}"
+  bpath="${bpath:-v1}"
+  printf 'http://%s:%s/%s' "$host" "$port" "$bpath"
+}
+
+probe_models() {
+  "$CURL" -sf --connect-timeout 3 --max-time 5 "${1}/models" 2>/dev/null \
+    | grep -o '"id"[[:space:]]*:[[:space:]]*"[^"]*"' \
+    | sed 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/'
+}
+
+configure() {
+  base_url="$1"
+  model_id="$2"
+  "$SNAP/bin/hermes" config set model.provider custom >/dev/null 2>&1 || return 1
+  "$SNAP/bin/hermes" config set model.base_url "$base_url" >/dev/null 2>&1 || return 1
+  "$SNAP/bin/hermes" config set model.default "$model_id" >/dev/null 2>&1 || return 1
+}
+
+ENTRIES=""
+for sname in $INFERENCE_SNAPS; do
+  base_url=$(get_snap_base_url "$sname") || continue
+  models=$(probe_models "$base_url")
+  [ -z "$models" ] && continue
+  for mid in $models; do
+    ENTRIES="${ENTRIES}${sname}|${base_url}|${mid}
+"
+  done
+done
+ENTRIES=$(printf '%s' "$ENTRIES" | sed '/^$/d')
+COUNT=$(printf '%s\n' "$ENTRIES" | grep -c .)
+
+if [ "$COUNT" -eq 0 ]; then
+  err "no inference snaps detected"
+  err "install one with: sudo snap install gemma4"
+  err "then run '${CLI}.inference-snap' again"
+  exit 1
+fi
+
+if [ ! -t 0 ] || [ ! -t 1 ]; then
+  ENTRY=$(printf '%s\n' "$ENTRIES" | head -1)
+  _sname=$(printf '%s' "$ENTRY" | cut -d'|' -f1)
+  _base=$(printf '%s' "$ENTRY" | cut -d'|' -f2)
+  _mid=$(printf '%s' "$ENTRY" | cut -d'|' -f3)
+  if configure "$_base" "$_mid"; then
+    log "configured ${_sname}/${_mid} (non-interactive)"
+    systemctl --user restart "$SERVICE_NAME" >/dev/null 2>&1 || true
+    exit 0
+  fi
+  err "failed to configure ${_sname}/${_mid}"
+  exit 1
+fi
+
+printf '\nHermes Agent detected the following inference snaps:\n\n'
+i=1
+printf '%s\n' "$ENTRIES" | while IFS= read -r entry; do
+  [ -z "$entry" ] && continue
+  _sname=$(printf '%s' "$entry" | cut -d'|' -f1)
+  _base=$(printf '%s' "$entry" | cut -d'|' -f2)
+  _mid=$(printf '%s' "$entry" | cut -d'|' -f3)
+  printf '  %d. %s/%s  (%s)\n' "$i" "$_sname" "$_mid" "$_base"
+  i=$((i + 1))
+done
+printf '\n'
+
+while true; do
+  printf 'Model number [1]: '
+  read -r choice
+  [ -z "$choice" ] && choice=1
+  case "$choice" in
+    ''|*[!0-9]*) continue ;;
+  esac
+  if [ "$choice" -ge 1 ] && [ "$choice" -le "$COUNT" ]; then
+    break
+  fi
+done
+
+ENTRY=$(printf '%s\n' "$ENTRIES" | sed -n "${choice}p")
+SNAME=$(printf '%s' "$ENTRY" | cut -d'|' -f1)
+BASE_URL=$(printf '%s' "$ENTRY" | cut -d'|' -f2)
+MID=$(printf '%s' "$ENTRY" | cut -d'|' -f3)
+
+if configure "$BASE_URL" "$MID"; then
+  log "primary model -> ${SNAME}/${MID}  (${BASE_URL})"
+  if systemctl --user restart "$SERVICE_NAME" >/dev/null 2>&1; then
+    log "restarted the gateway service"
+  else
+    log "run 'systemctl --user restart ${SERVICE_NAME}' to apply"
+  fi
+else
+  err "failed to configure ${SNAME}/${MID}"
+  exit 1
+fi
