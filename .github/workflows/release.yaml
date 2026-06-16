@@ -1,0 +1,61 @@
+name: GitHub release
+
+# Build the snap and publish it as a GitHub release asset for side-loading.
+# Skips creating a new release if one already exists for the built version;
+# re-uploads the snap asset if the release exists but the asset is missing.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'snap/**'
+      - '.github/workflows/release.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build snap
+        id: build
+        uses: snapcore/action-build@v1
+
+      - name: Extract version
+        id: version
+        run: |
+          snap_file="${{ steps.build.outputs.snap }}"
+          version=$(basename "$snap_file" | cut -d_ -f2)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "snap_name=$(basename "$snap_file")" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          snap_file="${{ steps.build.outputs.snap }}"
+          snap_name="${{ steps.version.outputs.snap_name }}"
+
+          cat > /tmp/release-notes.md << EOF
+          Side-load install (until the snap is published to the Snap Store):
+
+          \`\`\`
+          sudo snap install --classic --dangerous $snap_name
+          \`\`\`
+
+          Download the snap file from the Assets section below.
+          EOF
+
+          if gh release view "$version" > /dev/null 2>&1; then
+            echo "Release $version already exists; uploading snap asset"
+            gh release upload "$version" "$snap_file" --clobber
+          else
+            gh release create "$version" "$snap_file" \
+              --title "$version" \
+              --notes-file /tmp/release-notes.md
+          fi
