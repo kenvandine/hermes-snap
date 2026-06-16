@@ -5,7 +5,11 @@
 # models, and configures Hermes to use it via `hermes config set`, then
 # restarts the gateway so the change takes effect.
 #
-# Run as:  hermes-agent.lemonade
+# Run as:  hermes-agent.lemonade [--auto]
+#
+# --auto: non-interactive; picks the first available chat model and configures
+#         it without user interaction.  Also installs the systemd user service
+#         unit if it has not been set up yet (safe to run on first install).
 
 export PATH="$SNAP/bin:$PATH"
 export PYTHONPATH="$SNAP/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}"
@@ -22,6 +26,58 @@ SERVICE_NAME="hermes-agent"
 
 log() { printf '%s: %s\n' "$CLI" "$1"; }
 err() { printf '%s: %s\n' "$CLI" "$1" >&2; }
+
+# Parse arguments.
+AUTO=0
+for arg in "$@"; do
+  case "$arg" in
+    --auto) AUTO=1 ;;
+    *) err "unknown argument: $arg"; exit 1 ;;
+  esac
+done
+
+# Install (or refresh) the systemd user service unit.  Called by --auto so
+# the service is available even when the main launcher has not been run yet.
+_install_service_unit() {
+  local unit_src="$SNAP/share/systemd/user/${SERVICE_NAME}.service"
+  local unit_dir="$HOME/.config/systemd/user"
+  local unit_dst="$unit_dir/${SERVICE_NAME}.service"
+  [ -f "$unit_src" ] || return 0
+  mkdir -p "$unit_dir"
+  if [ ! -f "$unit_dst" ] || ! cmp -s "$unit_src" "$unit_dst"; then
+    cp "$unit_src" "$unit_dst"
+    systemctl --user daemon-reload 2>/dev/null || true
+  fi
+  if ! systemctl --user is-enabled "$SERVICE_NAME" >/dev/null 2>&1; then
+    systemctl --user enable --now "$SERVICE_NAME" 2>/dev/null || true
+  fi
+}
+
+score_model() {
+  lower=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  case "$lower" in
+    *flux*|*sdxl*|*stable?diff*) printf '%s\n' -30; return ;;
+    *kokoro*|*whisper*|*tts*|*speech*) printf '%s\n' -20; return ;;
+    *embed*|*retriev*|*rerank*) printf '%s\n' -20; return ;;
+  esac
+  score=0
+  case "$lower" in *flm*)               score=$((score + 20)) ;; esac
+  case "$lower" in *gguf*)              score=$((score + 10)) ;; esac
+  case "$lower" in *instruct*|*-it-*|*chat*) score=$((score + 5)) ;; esac
+  printf '%s\n' "$score"
+}
+
+pick_best() {
+  best_id=""; best_score=-999
+  while IFS= read -r id; do
+    [ -z "$id" ] && continue
+    s=$(score_model "$id")
+    if [ "$s" -ge 0 ] && [ "$s" -gt "$best_score" ]; then
+      best_score="$s"; best_id="$id"
+    fi
+  done
+  [ -n "$best_id" ] && printf '%s\n' "$best_id"
+}
 
 probe_models() {
   "$CURL" -sf --connect-timeout 3 --max-time 5 "${1}/models" 2>/dev/null \
@@ -67,15 +123,29 @@ if [ "$COUNT" -eq 0 ]; then
   COUNT=$(printf '%s\n' "$MODELS" | grep -c .)
 fi
 
-if [ ! -t 0 ] || [ ! -t 1 ]; then
-  SELECTED=$(printf '%s\n' "$MODELS" | head -1)
-  if configure "$SELECTED"; then
-    log "configured lemonade/${SELECTED} (non-interactive)"
-    systemctl --user restart "$SERVICE_NAME" >/dev/null 2>&1 || true
-    exit 0
+# Non-interactive: --auto flag or no TTY.
+if [ "$AUTO" -eq 1 ] || [ ! -t 0 ] || [ ! -t 1 ]; then
+  if [ "$AUTO" -eq 1 ]; then
+    SELECTED=$(printf '%s\n' "$MODELS" | pick_best)
+    [ -z "$SELECTED" ] && SELECTED=$(printf '%s\n' "$MODELS" | head -1)
+    _install_service_unit
+    if configure "$SELECTED"; then
+      log "auto-configured lemonade/${SELECTED}"
+      systemctl --user restart "$SERVICE_NAME" >/dev/null 2>&1 || true
+      exit 0
+    fi
+    err "failed to configure ${SELECTED}"
+    exit 1
+  else
+    SELECTED=$(printf '%s\n' "$MODELS" | head -1)
+    if configure "$SELECTED"; then
+      log "configured lemonade/${SELECTED} (non-interactive)"
+      systemctl --user restart "$SERVICE_NAME" >/dev/null 2>&1 || true
+      exit 0
+    fi
+    err "failed to configure ${SELECTED}"
+    exit 1
   fi
-  err "failed to configure ${SELECTED}"
-  exit 1
 fi
 
 printf '\nHermes Agent detected Lemonade at %s.\n' "$LEMONADE_BASE_URL"
