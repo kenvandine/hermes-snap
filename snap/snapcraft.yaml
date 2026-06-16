@@ -192,8 +192,6 @@ parts:
         -name "METADATA" -path "*/hermes_agent-*.dist-info/METADATA" 2>/dev/null \
         | head -1 | xargs grep -m1 "^Version:" | awk '{print $2}')"
     stage-packages:
-      - curl
-      - git
       # Runtime libraries required by Playwright's bundled Chromium on Noble.
       - libnss3
       - libnspr4
@@ -214,6 +212,14 @@ parts:
       - libpango-1.0-0
       - libcairo2
       - libasound2t64
+
+  # Stage curl and git separately so they aren't wiped by the hermes part's
+  # override-build (which does rm -rf $CRAFT_PART_INSTALL at the start).
+  system-tools:
+    plugin: nil
+    stage-packages:
+      - curl
+      - git
 
   # Bundle Node.js 22 so hermes can use it for browser automation tools.
   nodejs:
