@@ -23,6 +23,15 @@ err() { printf '%s: %s\n' "$CLI" "$1" >&2; }
 # Returns "http://HOST:PORT/BASE-PATH" for the Hermes base_url (includes /v1).
 get_snap_base_url() {
   sname="$1"
+  # Prefer the standardized status file — avoids the TTY-output CLI issue
+  # where `<snap> get <key>` writes directly to /dev/tty rather than stdout.
+  status_file="/var/snap/${sname}/current/share/status/status.json"
+  if [ -f "$status_file" ]; then
+    openai_url=$(grep -o '"openai"[[:space:]]*:[[:space:]]*"[^"]*"' "$status_file" \
+      | sed 's/.*"openai"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+    [ -n "$openai_url" ] && printf '%s' "$openai_url" && return 0
+  fi
+  # Fallback: CLI-based detection for snaps without a status file
   snap list "$sname" >/dev/null 2>&1 || return 1
   host=$("$sname" get http.host 2>/dev/null)
   port=$("$sname" get http.port 2>/dev/null)
