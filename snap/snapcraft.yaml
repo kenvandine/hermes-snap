@@ -12,8 +12,14 @@ description: |
   Teams, and more) and executes tasks using 60+ built-in tools: web browsing,
   browser automation, code execution, file operations, scheduled jobs, and more.
 
-  Compatible with any OpenAI-compatible LLM — locally via Lemonade or Ollama,
-  or via cloud APIs such as OpenAI and Anthropic.
+  Compatible with any OpenAI-compatible LLM — locally via Lemonade, Ollama,
+  or a Canonical inference snap, or via cloud APIs such as OpenAI and Anthropic.
+
+  LOCAL AI
+
+  Run 'hermes-agent.inference-snap' to detect a Canonical inference snap
+  (gemma4, gemma3, deepseek-r1, and others) and configure it as Hermes's
+  default model in one step — fully offline, no API key required.
 
   SETUP
 
