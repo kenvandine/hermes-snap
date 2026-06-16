@@ -19,8 +19,9 @@ sudo snap install --classic hermes-agent_<version>_amd64.snap --dangerous
 ## Usage
 
 ```
-hermes-agent setup     # first-run setup wizard
-hermes-agent           # interactive CLI
+hermes-agent setup              # first-run setup wizard
+hermes-agent                    # interactive CLI
+hermes-agent.inference-snap     # pick a Canonical inference snap (interactive TUI)
 ```
 
 The background gateway service is installed and enabled as a systemd user unit the first time any `hermes-agent` command is run:
@@ -29,6 +30,19 @@ The background gateway service is installed and enabled as a systemd user unit t
 systemctl --user status hermes-agent
 systemctl --user stop hermes-agent
 systemctl --user start hermes-agent
+```
+
+### Local AI with Canonical inference snaps
+
+`hermes-agent.inference-snap` detects installed [Canonical inference snaps](https://snapcraft.io/search?q=inference)
+such as `gemma4`, `gemma3`, `deepseek-r1`, `nemotron-3-nano`, or `qwen-vl`, probes
+their OpenAI-compatible API, and lets you choose one as Hermes's default model.
+It configures Hermes via `hermes config set` and restarts the gateway so the change
+takes effect immediately. Re-run it any time to switch models.
+
+```
+sudo snap install gemma4
+hermes-agent.inference-snap
 ```
 
 ## Design notes
