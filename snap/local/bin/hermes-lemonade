@@ -96,10 +96,11 @@ is_non_chat() {
 }
 
 configure() {
-  model_id="$1"
-  "$SNAP/bin/hermes" config set model.provider custom >/dev/null 2>&1 || return 1
+  # Use the native 'lemonade' provider type so hermes auto-selects the model
+  # at runtime from the lemonade server's available models.  This also makes
+  # the provider appear correctly as "Lemonade" in the web dashboard.
+  "$SNAP/bin/hermes" config set model.provider lemonade >/dev/null 2>&1 || return 1
   "$SNAP/bin/hermes" config set model.base_url "$LEMONADE_BASE_URL" >/dev/null 2>&1 || return 1
-  "$SNAP/bin/hermes" config set model.default "$model_id" >/dev/null 2>&1 || return 1
   "$SNAP/bin/hermes" config set model.api_key lemonade >/dev/null 2>&1 || true
 }
 
@@ -126,61 +127,36 @@ fi
 # Non-interactive: --auto flag or no TTY.
 if [ "$AUTO" -eq 1 ] || [ ! -t 0 ] || [ ! -t 1 ]; then
   if [ "$AUTO" -eq 1 ]; then
-    SELECTED=$(printf '%s\n' "$MODELS" | pick_best)
-    [ -z "$SELECTED" ] && SELECTED=$(printf '%s\n' "$MODELS" | head -1)
     _install_service_unit
-    if configure "$SELECTED"; then
-      log "auto-configured lemonade/${SELECTED}"
+    if configure; then
+      log "auto-configured lemonade provider (model selected at runtime)"
       systemctl --user restart "$SERVICE_NAME" >/dev/null 2>&1 || true
       exit 0
     fi
-    err "failed to configure ${SELECTED}"
+    err "failed to configure lemonade provider"
     exit 1
   else
-    SELECTED=$(printf '%s\n' "$MODELS" | head -1)
-    if configure "$SELECTED"; then
-      log "configured lemonade/${SELECTED} (non-interactive)"
+    if configure; then
+      log "configured lemonade provider (non-interactive)"
       systemctl --user restart "$SERVICE_NAME" >/dev/null 2>&1 || true
       exit 0
     fi
-    err "failed to configure ${SELECTED}"
+    err "failed to configure lemonade provider"
     exit 1
   fi
 fi
 
 printf '\nHermes Agent detected Lemonade at %s.\n' "$LEMONADE_BASE_URL"
-printf 'Choose a model to use as the primary provider:\n\n'
+printf 'Configuring Lemonade as the model provider (model selected at runtime)...\n\n'
 
-i=1
-printf '%s\n' "$MODELS" | while IFS= read -r m; do
-  [ -z "$m" ] && continue
-  printf '  %d. %s\n' "$i" "$m"
-  i=$((i + 1))
-done
-printf '\n'
-
-while true; do
-  printf 'Model number [1]: '
-  read -r choice
-  [ -z "$choice" ] && choice=1
-  case "$choice" in
-    ''|*[!0-9]*) continue ;;
-  esac
-  if [ "$choice" -ge 1 ] && [ "$choice" -le "$COUNT" ]; then
-    break
-  fi
-done
-
-SELECTED=$(printf '%s\n' "$MODELS" | sed -n "${choice}p")
-
-if configure "$SELECTED"; then
-  log "primary model -> lemonade/${SELECTED}  (${LEMONADE_BASE_URL})"
+if configure; then
+  log "provider -> lemonade  (${LEMONADE_BASE_URL})"
   if systemctl --user restart "$SERVICE_NAME" >/dev/null 2>&1; then
     log "restarted the gateway service"
   else
     log "run 'systemctl --user restart ${SERVICE_NAME}' to apply"
   fi
 else
-  err "failed to configure ${SELECTED}"
+  err "failed to configure lemonade provider"
   exit 1
 fi
