@@ -8,4 +8,10 @@ export PYTHONPATH="$SNAP/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}
 
 mkdir -p "$HOME/.hermes"
 
+# Start the web dashboard in the background bound to all interfaces so it is
+# reachable through the LXD proxy.  --skip-build avoids an npm rebuild on each
+# start; the pre-built dist is bundled in the snap.  Runs as a child of this
+# process so systemd's cgroup cleanup stops it together with the gateway.
+"$SNAP/bin/hermes" dashboard --no-open --host 0.0.0.0 --insecure --skip-build &
+
 exec "$SNAP/bin/hermes" gateway run
