@@ -8,4 +8,4 @@ export PYTHONPATH="$SNAP/lib/python3.12/site-packages${PYTHONPATH:+:$PYTHONPATH}
 
 mkdir -p "$HOME/.hermes"
 
-exec "$SNAP/bin/hermes" gateway start
+exec "$SNAP/bin/hermes" gateway run
