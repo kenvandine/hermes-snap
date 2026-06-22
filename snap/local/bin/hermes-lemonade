@@ -29,11 +29,17 @@ err() { printf '%s: %s\n' "$CLI" "$1" >&2; }
 
 # Parse arguments.
 AUTO=0
+MODEL=""
+_prev=""
 for arg in "$@"; do
+  [ "$_prev" = "--model" ] && { MODEL="$arg"; _prev=""; continue; }
   case "$arg" in
     --auto) AUTO=1 ;;
+    --model=*) MODEL="${arg#--model=}" ;;
+    --model)   _prev="--model" ;;
     *) err "unknown argument: $arg"; exit 1 ;;
   esac
+  _prev="$arg"
 done
 
 # Install (or refresh) the systemd user service unit.  Called by --auto so
