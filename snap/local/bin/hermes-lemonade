@@ -102,13 +102,16 @@ is_non_chat() {
 }
 
 configure() {
-  # Use the native 'lemonade' provider type so hermes auto-selects the model
-  # at runtime from the lemonade server's available models.  This also makes
-  # the provider appear correctly as "Lemonade" in the web dashboard.
-  "$SNAP/bin/hermes" config set model.provider lemonade >/dev/null 2>&1 || return 1
+  local model_id="$1"
+  "$SNAP/bin/hermes" config set model.provider custom >/dev/null 2>&1 || return 1
   "$SNAP/bin/hermes" config set model.base_url "$LEMONADE_BASE_URL" >/dev/null 2>&1 || return 1
   "$SNAP/bin/hermes" config set model.api_key lemonade >/dev/null 2>&1 || true
+  if [ -n "$model_id" ]; then
+    "$SNAP/bin/hermes" config set model.model "$model_id" >/dev/null 2>&1 || true
+  fi
+  "$SNAP/bin/hermes" config set model.context_length 65536 >/dev/null 2>&1 || true
 }
+
 
 ALL_MODELS=$(probe_models "http://${LEMONADE_HOST}:${LEMONADE_PORT}/api/v1")
 if [ -z "$ALL_MODELS" ]; then
@@ -130,20 +133,27 @@ if [ "$COUNT" -eq 0 ]; then
   COUNT=$(printf '%s\n' "$MODELS" | grep -c .)
 fi
 
+if [ -n "$MODEL" ]; then
+  SELECTED="$MODEL"
+else
+  SELECTED=$(printf '%s\n' "$MODELS" | pick_best)
+  [ -z "$SELECTED" ] && SELECTED=$(printf '%s\n' "$MODELS" | head -1)
+fi
+
 # Non-interactive: --auto flag or no TTY.
 if [ "$AUTO" -eq 1 ] || [ ! -t 0 ] || [ ! -t 1 ]; then
   if [ "$AUTO" -eq 1 ]; then
     _install_service_unit
-    if configure; then
-      log "auto-configured lemonade provider (model selected at runtime)"
+    if configure "$SELECTED"; then
+      log "auto-configured lemonade provider with model $SELECTED"
       systemctl --user restart "$SERVICE_NAME" >/dev/null 2>&1 || true
       exit 0
     fi
     err "failed to configure lemonade provider"
     exit 1
   else
-    if configure; then
-      log "configured lemonade provider (non-interactive)"
+    if configure "$SELECTED"; then
+      log "configured lemonade provider with model $SELECTED (non-interactive)"
       systemctl --user restart "$SERVICE_NAME" >/dev/null 2>&1 || true
       exit 0
     fi
@@ -153,10 +163,10 @@ if [ "$AUTO" -eq 1 ] || [ ! -t 0 ] || [ ! -t 1 ]; then
 fi
 
 printf '\nHermes Agent detected Lemonade at %s.\n' "$LEMONADE_BASE_URL"
-printf 'Configuring Lemonade as the model provider (model selected at runtime)...\n\n'
+printf 'Configuring Lemonade as the model provider with model %s...\n\n' "$SELECTED"
 
-if configure; then
-  log "provider -> lemonade  (${LEMONADE_BASE_URL})"
+if configure "$SELECTED"; then
+  log "provider -> custom  (${LEMONADE_BASE_URL}) model -> ${SELECTED}"
   if systemctl --user restart "$SERVICE_NAME" >/dev/null 2>&1; then
     log "restarted the gateway service"
   else
