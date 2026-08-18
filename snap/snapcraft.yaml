@@ -121,7 +121,7 @@ parts:
       /usr/bin/python3 -m venv --copies "$CRAFT_PART_INSTALL"
       export PATH="$CRAFT_PART_INSTALL/bin:$PATH"
       pip install --upgrade --no-cache-dir pip setuptools wheel
-      pip install --no-cache-dir hermes-agent playwright
+      pip install --no-cache-dir hermes-agent[mcp] python-telegram-bot playwright
 
       # Bundle the python3.12 standard library into the venv so the snap is
       # self-contained.  A classic snap runs against the host filesystem, and
