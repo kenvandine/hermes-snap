@@ -5,6 +5,7 @@ on:
     paths:
       - 'snap/**'
       - 'package.json'
+      - '.github/workflows/pr.yaml'
 
 permissions:
   contents: read
@@ -43,7 +44,7 @@ jobs:
           fi
           echo "Installing $SNAP_FILE"
           sudo snap install --dangerous "$SNAP_FILE" --classic
-          snap wait system seed.loaded
+          sudo snap wait system seed.loaded
           sleep 5
 
       - name: Test hermes-agent CLI
