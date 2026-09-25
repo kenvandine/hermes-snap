@@ -54,7 +54,6 @@ license: MIT
 grade: stable
 confinement: classic
 
-# Build for both amd64 and arm64 (native on each arch; e.g. Raspberry Pi 5).
 platforms:
   amd64:
     build-on: [amd64]
@@ -240,8 +239,7 @@ parts:
       craftctl default
       # Point Node at core24's loader, selecting the interpreter and library
       # triplet to match the architecture the snap is built for (aarch64 for
-      # arm64, x86_64 for amd64) so it runs on Raspberry Pi and other arm64
-      # hosts as well as x86_64.
+      # arm64, x86_64 for amd64) so it runs arm64 hosts as well as x86_64.
       case "${CRAFT_ARCH_TRIPLET_BUILD_FOR}" in
         aarch64-linux-gnu)
           INTERP=/snap/core24/current/lib/ld-linux-aarch64.so.1
