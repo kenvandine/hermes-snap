@@ -54,6 +54,14 @@ license: MIT
 grade: stable
 confinement: classic
 
+platforms:
+  amd64:
+    build-on: [amd64]
+    build-for: [amd64]
+  arm64:
+    build-on: [arm64]
+    build-for: [arm64]
+
 apps:
   # Interactive CLI — setup wizard, status checks, one-shot commands, etc.
   # App name matches the snap name so it installs as the bare 'hermes-agent'.
@@ -229,9 +237,20 @@ parts:
     npm-node-version: '22.16.0'
     override-build: |
       craftctl default
+      # Point Node at core24's loader, selecting the interpreter and library
+      # triplet to match the architecture the snap is built for (aarch64 for
+      # arm64, x86_64 for amd64) so it runs arm64 hosts as well as x86_64.
+      case "${CRAFT_ARCH_TRIPLET_BUILD_FOR}" in
+        aarch64-linux-gnu)
+          INTERP=/snap/core24/current/lib/ld-linux-aarch64.so.1
+          ;;
+        *)
+          INTERP=/snap/core24/current/lib64/ld-linux-x86-64.so.2
+          ;;
+      esac
       patchelf \
-        --set-interpreter /snap/core24/current/lib64/ld-linux-x86-64.so.2 \
-        --set-rpath /snap/core24/current/lib/x86_64-linux-gnu \
+        --set-interpreter "$INTERP" \
+        --set-rpath "/snap/core24/current/lib/${CRAFT_ARCH_TRIPLET_BUILD_FOR}" \
         "$CRAFT_PART_INSTALL/bin/node"
     build-packages:
       - patchelf

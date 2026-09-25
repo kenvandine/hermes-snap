@@ -15,8 +15,15 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  build:
+    strategy:
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -30,32 +37,58 @@ jobs:
         run: |
           snap_file="${{ steps.build.outputs.snap }}"
           version=$(basename "$snap_file" | cut -d_ -f2)
+          snap_name=$(basename "$snap_file")
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "snap_name=$(basename "$snap_file")" >> "$GITHUB_OUTPUT"
+          echo "snap_name=$snap_name" >> "$GITHUB_OUTPUT"
+          # Stage the snap for the release job via an artifact (build dir is
+          # per-runner, release runs on a separate runner). Keep the original
+          # name (hermes-agent_<version>_<arch>.snap) so both arch assets are
+          # distinguishable on the release.
+          mkdir -p dist
+          cp "$snap_file" "dist/$snap_name"
+
+      - name: Upload snap artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: snap-${{ matrix.arch }}
+          path: dist/*.snap
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download snaps
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${{ steps.version.outputs.version }}"
-          snap_file="${{ steps.build.outputs.snap }}"
-          snap_name="${{ steps.version.outputs.snap_name }}"
+          version="${{ needs.build.outputs.version }}"
+          ls -la dist
 
           cat > /tmp/release-notes.md << EOF
           Side-load install (until the snap is published to the Snap Store):
 
           \`\`\`
-          sudo snap install --classic --dangerous $snap_name
+          sudo snap install --classic --dangerous hermes-agent_${version}_amd64.snap    # x86_64
+          sudo snap install --classic --dangerous hermes-agent_${version}_arm64.snap    # ARM64 (e.g. Raspberry Pi 5)
           \`\`\`
 
-          Download the snap file from the Assets section below.
+          Download the snap for your architecture from the Assets section below.
           EOF
 
           if gh release view "$version" > /dev/null 2>&1; then
-            echo "Release $version already exists; uploading snap asset"
-            gh release upload "$version" "$snap_file" --clobber
+            echo "Release $version already exists; uploading snap assets"
+            gh release upload "$version" dist/*.snap --clobber
           else
-            gh release create "$version" "$snap_file" \
+            gh release create "$version" dist/*.snap \
               --title "$version" \
               --notes-file /tmp/release-notes.md
           fi
