@@ -46,6 +46,10 @@ jobs:
           snap wait system seed.loaded
           sleep 5
 
+      - name: Check bundled skills
+        run: |
+          test -n "$(find /snap/hermes-agent/current/skills -type f -name SKILL.md -print -quit)"
+
       - name: Test hermes-agent CLI
         run: |
           hermes-agent --version 2>&1 || true
