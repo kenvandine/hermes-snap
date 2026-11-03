@@ -5,6 +5,7 @@ on:
     paths:
       - 'snap/**'
       - 'package.json'
+      - '.github/workflows/pr.yaml'
 
 permissions:
   contents: read
