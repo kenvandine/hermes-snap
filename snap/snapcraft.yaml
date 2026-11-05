@@ -65,6 +65,7 @@ apps:
     command: bin/hermes-launch
     environment:
       PLAYWRIGHT_BROWSERS_PATH: $SNAP/usr/share/ms-playwright
+      HERMES_BUNDLED_SKILLS: $SNAP/skills
 
   # Persistent gateway service — registered as /snap/bin/hermes-agent.daemon so
   # the snap wrapper sets up $SNAP and friends before exec-ing the launch script.
@@ -73,12 +74,14 @@ apps:
     command: bin/hermes-daemon-launch
     environment:
       PLAYWRIGHT_BROWSERS_PATH: $SNAP/usr/share/ms-playwright
+      HERMES_BUNDLED_SKILLS: $SNAP/skills
 
   # Interactive Lemonade model picker.  Run as: hermes-agent.lemonade
   lemonade:
     command: bin/hermes-lemonade
     environment:
       PLAYWRIGHT_BROWSERS_PATH: $SNAP/usr/share/ms-playwright
+      HERMES_BUNDLED_SKILLS: $SNAP/skills
       CLAW_INFERENCE_SNAPS: "gemma3 gemma4 deepseek-r1 nemotron-3-nano nemotron-3-nano-omni qwen-vl"
 
   # Interactive inference snap picker.  Run as: hermes-agent.inference-snap
@@ -86,6 +89,7 @@ apps:
     command: bin/hermes-inference-snap
     environment:
       PLAYWRIGHT_BROWSERS_PATH: $SNAP/usr/share/ms-playwright
+      HERMES_BUNDLED_SKILLS: $SNAP/skills
       CLAW_INFERENCE_SNAPS: "gemma3 gemma4 deepseek-r1 nemotron-3-nano nemotron-3-nano-omni qwen-vl"
 
 parts:
@@ -98,6 +102,15 @@ parts:
       bin/hermes-lemonade: bin/hermes-lemonade
       bin/hermes-inference-snap: bin/hermes-inference-snap
       share/systemd/user/hermes-agent.service: share/systemd/user/hermes-agent.service
+
+  bundled-skills:
+    plugin: nil
+    source: https://github.com/NousResearch/hermes-agent.git
+    source-branch: main
+    override-build: |
+      mkdir -p "$CRAFT_PART_INSTALL/skills"
+      cp -a "$CRAFT_PART_SRC/skills/." "$CRAFT_PART_INSTALL/skills/"
+      find "$CRAFT_PART_INSTALL/skills" -type d \( -name index-cache -o -name __pycache__ \) -prune -exec rm -rf {} +
 
   hermes:
     # Use the nil plugin + a manual venv rather than plugin: python.  On core24

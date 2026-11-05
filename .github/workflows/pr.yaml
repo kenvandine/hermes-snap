@@ -32,6 +32,10 @@ jobs:
           echo "Installing ${{ steps.build.outputs.snap }}"
           sudo snap install --dangerous "${{ steps.build.outputs.snap }}" --classic
 
+      - name: Check bundled skills
+        run: |
+          test -n "$(find /snap/hermes-agent/current/skills -type f -name SKILL.md -print -quit)"
+
       - name: Test hermes-agent CLI
         run: |
           hermes-agent --version 2>&1 || true
