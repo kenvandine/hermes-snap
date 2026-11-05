@@ -5,13 +5,20 @@ on:
     paths:
       - 'snap/**'
       - 'package.json'
+      - '.github/workflows/pr.yaml'
 
 permissions:
   contents: read
 
 jobs:
   smoke-test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -36,4 +43,4 @@ jobs:
 
       - name: Test daemon command
         run: |
-          hermes-agent.daemon --help 2>&1 | head -20 || true
+          timeout 20 hermes-agent.daemon --help 2>&1 | head -20 || true

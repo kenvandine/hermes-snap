@@ -17,7 +17,12 @@ permissions:
 
 jobs:
   build-edge:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { arch: amd64, runner: ubuntu-latest }
+          - { arch: arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -26,7 +31,35 @@ jobs:
         id: build
         uses: snapcore/action-build@v1
 
-      - name: Publish to edge
+      # Gate publishing on the snap actually running. "strict" commands must
+      # exit 0; "nocrash" commands may exit non-zero (e.g. the lemonade picker
+      # with no lemonade-server in CI) but must not hang, be missing (126/127)
+      # or die from a signal (>128, e.g. 139 = segfault). The .daemon apps are
+      # not exercised: they start real servers even when passed --help.
+      - name: Smoke test
+        run: |
+          sudo snap install --dangerous --classic "${{ steps.build.outputs.snap }}"
+          export PATH="/snap/bin:$PATH"
+          fail=0
+          check() {
+            mode=$1; shift
+            echo "::group::$*"
+            rc=0
+            timeout -k 5 120 "$@" </dev/null >"$RUNNER_TEMP/smoke.out" 2>&1 || rc=$?
+            head -40 "$RUNNER_TEMP/smoke.out"
+            echo "::endgroup::"
+            if [ "$mode" = strict ] && [ "$rc" -ne 0 ]; then
+              echo "::error::'$*' exited $rc"; fail=1
+            elif [ "$rc" -eq 124 ] || [ "$rc" -ge 126 ]; then
+              echo "::error::'$*' hung or crashed (exit $rc)"; fail=1
+            fi
+          }
+          check strict hermes-agent --help
+          check nocrash hermes-agent --version
+          check nocrash hermes-agent.lemonade
+          exit $fail
+
+      - name: Publish to edge (${{ matrix.arch }})
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
