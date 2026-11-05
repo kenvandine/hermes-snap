@@ -18,6 +18,9 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   build:
     name: "Build and publish to candidate"
