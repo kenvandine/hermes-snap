@@ -106,7 +106,7 @@ parts:
   bundled-skills:
     plugin: nil
     source: https://github.com/NousResearch/hermes-agent.git
-    source-branch: main
+    source-tag: v0.23.1
     override-build: |
       mkdir -p "$CRAFT_PART_INSTALL/skills"
       cp -a "$CRAFT_PART_SRC/skills/." "$CRAFT_PART_INSTALL/skills/"
